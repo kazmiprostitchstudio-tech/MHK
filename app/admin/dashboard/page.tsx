@@ -17,13 +17,14 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<Employee>({
     name: '',
     role: 'Machine Operator',
     phone: '',
-    machineAssigned: 'Unit-1',
+    machineAssigned: 'Head-1 (12-Needle)',
     dailyStitchTarget: 50000,
     status: 'Active'
   });
@@ -64,16 +65,63 @@ export default function AdminDashboard() {
           name: '',
           role: 'Machine Operator',
           phone: '',
-          machineAssigned: 'Unit-1',
+          machineAssigned: 'Head-1 (12-Needle)',
           dailyStitchTarget: 50000,
           status: 'Active'
         });
-        fetchEmployees(); // Refresh list
+        fetchEmployees();
       }
     } catch (err) {
       console.error("Error creating employee", err);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // 📊 Handle Excel Ledger Download
+  const handleExportExcel = async () => {
+    setExportingExcel(true);
+    try {
+      const res = await fetch('/api/reports/excel');
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Shah_Embroidery_Ledger_${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        alert("Excel generator API issue. Check server logs.");
+      }
+    } catch (err) {
+      console.error("Excel download error", err);
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
+  // 📄 Handle PDF Experience Letter Download
+  const handleDownloadPDF = async (employeeName: string, role: string) => {
+    try {
+      const res = await fetch('/api/employee/experience-letter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: employeeName, role: role })
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${employeeName.replace(/\s+/g, '_')}_Experience_Letter.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+    } catch (err) {
+      console.error("PDF generation error", err);
     }
   };
 
@@ -87,8 +135,15 @@ export default function AdminDashboard() {
         </div>
         <div className="flex gap-3">
           <button 
+            onClick={handleExportExcel}
+            disabled={exportingExcel}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-lg transition-all shadow-lg flex items-center gap-2 text-sm disabled:opacity-50"
+          >
+            <span>{exportingExcel ? 'Generating...' : '📊 Export Excel Ledger'}</span>
+          </button>
+          <button 
             onClick={() => setShowModal(true)}
-            className="bg-amber-500 hover:bg-amber-600 text-black font-semibold px-5 py-2.5 rounded-lg transition-all shadow-lg flex items-center gap-2"
+            className="bg-amber-500 hover:bg-amber-600 text-black font-semibold px-5 py-2.5 rounded-lg transition-all shadow-lg flex items-center gap-2 text-sm"
           >
             <span>+ Add New Worker</span>
           </button>
@@ -100,7 +155,7 @@ export default function AdminDashboard() {
         <div className="bg-[#161b22] p-6 rounded-xl border border-gray-800 shadow-md">
           <div className="text-gray-400 text-xs font-semibold tracking-wider uppercase mb-1">Active Staff</div>
           <div className="text-3xl font-extrabold text-white">{loading ? '...' : `${employees.length} Workers`}</div>
-          <span className="text-emerald-400 text-xs font-medium mt-2 block">● Connected to MongoDB</span>
+          <span className="text-emerald-400 text-xs font-medium mt-2 block">● Live MongoDB Sync</span>
         </div>
 
         <div className="bg-[#161b22] p-6 rounded-xl border border-gray-800 shadow-md">
@@ -122,7 +177,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Live Employees Table */}
+      {/* Live Employees Directory */}
       <div className="bg-[#161b22] rounded-xl border border-gray-800 overflow-hidden shadow-xl">
         <div className="p-6 border-b border-gray-800 flex justify-between items-center">
           <h2 className="text-xl font-bold text-white">Registered Factory Workers</h2>
@@ -148,6 +203,7 @@ export default function AdminDashboard() {
                   <th className="p-4">Assigned Unit</th>
                   <th className="p-4">Stitch Target</th>
                   <th className="p-4">Status</th>
+                  <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800 text-sm">
@@ -166,6 +222,14 @@ export default function AdminDashboard() {
                       }`}>
                         {emp.status}
                       </span>
+                    </td>
+                    <td className="p-4 text-right">
+                      <button 
+                        onClick={() => handleDownloadPDF(emp.name, emp.role)}
+                        className="text-xs bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 px-3 py-1.5 rounded-lg border border-purple-500/30 transition"
+                      >
+                        📄 Download PDF
+                      </button>
                     </td>
                   </tr>
                 ))}
